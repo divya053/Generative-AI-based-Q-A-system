@@ -1,26 +1,12 @@
 import streamlit as st
 import os
 import tempfile
-import requests
 from llama_cpp import Llama
 from sentence_transformers import SentenceTransformer
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.vectorstores import FAISS
 from langchain.document_loaders import PyPDFLoader
 
-# ========== Download model if not exists ==========
-def download_model_if_needed(model_path: str, url: str):
-    if not os.path.exists(model_path):
-        os.makedirs(os.path.dirname(model_path), exist_ok=True)
-        with requests.get(url, stream=True) as r:
-            r.raise_for_status()
-            with open(model_path, 'wb') as f:
-                for chunk in r.iter_content(chunk_size=8192):
-                    if chunk:
-                        f.write(chunk)
-        print("✅ Model downloaded successfully.")
-
-# ========== PDF Q&A Class ==========
 class PDF_QA_Model:
     def __init__(self, model_path: str):
         self.llm = Llama(
@@ -72,7 +58,8 @@ class PDF_QA_Model:
         result = output['choices'][0]['text'].strip() if output['choices'] else ""
         return result if result else default_answer
 
-# ========== Streamlit UI ==========
+
+
 st.set_page_config(page_title="Generative AI-based Q&A System", layout="centered")
 
 st.markdown("<h1 style='text-align: center;'>PDF Q&A System</h1>", unsafe_allow_html=True)
@@ -87,10 +74,7 @@ if "pdf_loaded" not in st.session_state:
 
 @st.cache_resource
 def load_model():
-    model_path = "models/Hermes-2-Pro-Mistral-7B.Q5_K_M.gguf"
-    model_url = "https://huggingface.co/your-username/your-repo/resolve/main/Hermes-2-Pro-Mistral-7B.Q5_K_M.gguf"  # <-- 🔁 Replace this with real link
-    download_model_if_needed(model_path, model_url)
-    return PDF_QA_Model(model_path)
+    return PDF_QA_Model("models\Hermes-2-Pro-Mistral-7B.Q5_K_M.gguf") 
 
 gpt = load_model()
 
@@ -107,7 +91,7 @@ if uploaded_file:
         st.session_state.pdf_loaded = True
         st.success("PDF processed successfully!")
 
-# ========== Ask Question ==========
+
 if st.session_state.pdf_loaded:
     st.markdown("---")
     st.markdown("### Ask a Question")
@@ -121,7 +105,7 @@ if st.session_state.pdf_loaded:
         st.markdown(f"<div style='background-color:#333;padding:1rem;border-radius:8px;color:white;'>{answer}</div>", unsafe_allow_html=True)
         st.session_state.history.append(f"Q: {user_question}\nA: {answer}")
 
-# ========== Show History ==========
+# Show History
 if st.session_state.history:
     st.markdown("---")
     st.markdown("### Q&A History")
