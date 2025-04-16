@@ -7,8 +7,8 @@ from sentence_transformers import SentenceTransformer
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.vectorstores import FAISS
 from langchain.document_loaders import PyPDFLoader
+import subprocess
 
-# 🚀 Auto-download model from Google Drive if not present
 def ensure_model_file():
     model_path = "models/Hermes-2-Pro-Mistral-7B.Q5_K_M.gguf"
 
@@ -16,20 +16,19 @@ def ensure_model_file():
         os.makedirs("models", exist_ok=True)
         st.info("Model not found locally. Downloading from Google Drive...")
 
-        # 🔁 Replace with your actual file ID from Google Drive
+        # ✅ Use gdown for Google Drive downloads (make sure to install it)
         file_id = "1v5_eMAlNWBW34ahL2zkH9n8kH0K-UUI1"
-        download_url = f"https://drive.google.com/file/d/1v5_eMAlNWBW34ahL2zkH9n8kH0K-UUI1/view?usp=sharing"
-        response = requests.get(download_url)
+        gdown_url = f"https://drive.google.com/uc?id={file_id}"
 
-        if response.status_code == 200:
-            with open(model_path, "wb") as f:
-                f.write(response.content)
+        try:
+            subprocess.run(["gdown", gdown_url, "-O", model_path], check=True)
             st.success("Model downloaded successfully.")
-        else:
+        except Exception as e:
             st.error("❌ Failed to download model from Google Drive.")
-            raise RuntimeError("Model download failed.")
+            raise RuntimeError(f"Model download failed: {e}")
 
     return model_path
+
 
 class PDF_QA_Model:
     def __init__(self, model_path: str):
