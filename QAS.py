@@ -1,127 +1,142 @@
 import streamlit as st
-import torch
+import os
+import tempfile
+import requests
 from llama_cpp import Llama
 from sentence_transformers import SentenceTransformer
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.vectorstores import FAISS
 from langchain.document_loaders import PyPDFLoader
-import tempfile
-import os
 
-class MyGPT4All:
+# ========== Download model if not exists ==========
+def download_model_if_needed(model_path: str, url: str):
+    if not os.path.exists(model_path):
+        os.makedirs(os.path.dirname(model_path), exist_ok=True)
+        with requests.get(url, stream=True) as r:
+            r.raise_for_status()
+            with open(model_path, 'wb') as f:
+                for chunk in r.iter_content(chunk_size=8192):
+                    if chunk:
+                        f.write(chunk)
+        print("✅ Model downloaded successfully.")
+
+# ========== PDF Q&A Class ==========
+class PDF_QA_Model:
     def __init__(self, model_path: str):
         self.llm = Llama(
             model_path=model_path,
             n_ctx=2048,
             n_threads=os.cpu_count() or 4
         )
-        self.embeddings = SentenceTransformer("paraphrase-MiniLM-L3-v2")
+        self.embedding_model = SentenceTransformer("multi-qa-MiniLM-L6-cos-v1")
         self.vector_db = None
 
-    def load_documents(self, file_path: str):
-        if file_path.endswith(".pdf"):
-            loader = PyPDFLoader(file_path)
-            pages = loader.load()
-            splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
-            docs = splitter.split_documents(pages)
+    def load_pdf(self, file_path: str):
+        loader = PyPDFLoader(file_path)
+        pages = loader.load()
+        splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
+        docs = splitter.split_documents(pages)
 
-            texts = [doc.page_content for doc in docs if doc.page_content.strip()]
-            embeddings = self.embeddings.encode(texts, batch_size=32, show_progress_bar=False)
+        texts = [doc.page_content for doc in docs if doc.page_content.strip()]
+        embeddings = self.embedding_model.encode(texts, batch_size=32, show_progress_bar=False)
 
-            self.vector_db = FAISS.from_embeddings(list(zip(texts, embeddings)), self.embeddings)
+        self.vector_db = FAISS.from_embeddings(list(zip(texts, embeddings)), self.embedding_model)
 
     def query(self, question: str, max_tokens=200) -> str:
-        default_answer = "I'm sorry, I couldn't find any relevant information in the document."
+        default_answer = "Sorry, I couldn't find any relevant information in the uploaded document."
 
-        if self.vector_db:
-            question_embedding = self.embeddings.encode(question)
-            docs = self.vector_db.similarity_search_by_vector(question_embedding, k=3)
+        if not self.vector_db:
+            return default_answer
 
-            if not docs:
-                return default_answer
+        question_embedding = self.embedding_model.encode(question)
+        docs = self.vector_db.similarity_search_by_vector(question_embedding, k=3)
 
-            context = "\n".join([doc.page_content for doc in docs if doc.page_content.strip()])
-            if not context:
-                return default_answer
+        context = "\n".join([doc.page_content for doc in docs if doc.page_content.strip()])
+        if not context or len(context.strip()) < 30:
+            return default_answer
 
-            prompt = f"Context: {context}\nQuestion: {question}\nAnswer:"
-        else:
-            prompt = f"Question: {question}\nAnswer:"
+        prompt = (
+            f"Answer the QUESTION using only the CONTEXT below.\n"
+            f"If the answer is not in the context, respond: \"{default_answer}\"\n\n"
+            f"CONTEXT:\n{context}\n\n"
+            f"QUESTION: {question}\nANSWER:"
+        )
 
         output = self.llm(
             prompt,
             max_tokens=max_tokens,
-            stop=["Question:", "\n"],
+            stop=["\n\n", "QUESTION:"],
             echo=False
         )
 
-        return output['choices'][0]['text'].strip() if output['choices'] else default_answer
+        result = output['choices'][0]['text'].strip() if output['choices'] else ""
+        return result if result else default_answer
 
+# ========== Streamlit UI ==========
+st.set_page_config(page_title="Generative AI-based Q&A System", layout="centered")
 
-st.set_page_config(page_title="Generative AI-based Q&A system", layout="centered")
+st.markdown("<h1 style='text-align: center;'>PDF Q&A System</h1>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center;'>Ask questions based only on the uploaded PDF content.</p>", unsafe_allow_html=True)
 
-st.markdown("<h1 style='text-align: center; color: #ffffff;'>Q&A system</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center; color: #ffffff;'>Ask questions about your PDF.</p>", unsafe_allow_html=True)
-
-@st.cache_resource
-def load_llama_model():
-    return MyGPT4All("models/mistral-7b-openorca.Q4_0.gguf")
-
-gpt = load_llama_model()
-
+if "file_uploader_key" not in st.session_state:
+    st.session_state.file_uploader_key = "upload_1"
 if "history" not in st.session_state:
     st.session_state.history = []
-if "user_question" not in st.session_state:
-    st.session_state.user_question = ""
-if "pdf_uploaded" not in st.session_state:
-    st.session_state.pdf_uploaded = False
+if "pdf_loaded" not in st.session_state:
+    st.session_state.pdf_loaded = False
 
-st.markdown("### Upload your PDF")
-uploaded_pdf = st.file_uploader("Choose a PDF file to analyze", type=["pdf"], key="pdf_upload")
+@st.cache_resource
+def load_model():
+    model_path = "models/Hermes-2-Pro-Mistral-7B.Q5_K_M.gguf"
+    model_url = "https://huggingface.co/your-username/your-repo/resolve/main/Hermes-2-Pro-Mistral-7B.Q5_K_M.gguf"  # <-- 🔁 Replace this with real link
+    download_model_if_needed(model_path, model_url)
+    return PDF_QA_Model(model_path)
 
-if uploaded_pdf:
-    st.session_state.pdf_uploaded = True
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
-        tmp_file.write(uploaded_pdf.read())
-        tmp_path = tmp_file.name
+gpt = load_model()
 
-    with st.spinner("Processing your PDF..."):
-        gpt.load_documents(tmp_path)
-        st.success("PDF indexed successfully!")
+st.markdown("### Upload PDF")
+uploaded_file = st.file_uploader("Choose a PDF", type=["pdf"], key=st.session_state.file_uploader_key)
 
+if uploaded_file:
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+        tmp.write(uploaded_file.read())
+        file_path = tmp.name
+
+    with st.spinner("Reading and indexing PDF..."):
+        gpt.load_pdf(file_path)
+        st.session_state.pdf_loaded = True
+        st.success("PDF processed successfully!")
+
+# ========== Ask Question ==========
+if st.session_state.pdf_loaded:
     st.markdown("---")
     st.markdown("### Ask a Question")
-    st.text_input("Type your question here:", key="user_question")
+    user_question = st.text_input("Your question:")
 
-    if st.session_state.user_question.strip():
+    if user_question:
         with st.spinner("Thinking..."):
-            answer = gpt.query(st.session_state.user_question)
-        st.markdown("### Answer:")
-        st.markdown(f"<div style='background-color: #3e4042; padding: 1rem; border-radius: 0.5rem;'>{answer}</div>", unsafe_allow_html=True)
+            answer = gpt.query(user_question)
 
-        st.session_state.history.append(f"Q: {st.session_state.user_question}\nA: {answer}")
-        st.session_state.user_question = ""  
+        st.markdown("### Answer")
+        st.markdown(f"<div style='background-color:#333;padding:1rem;border-radius:8px;color:white;'>{answer}</div>", unsafe_allow_html=True)
+        st.session_state.history.append(f"Q: {user_question}\nA: {answer}")
 
-    if st.session_state.history:
-        st.markdown("---")
-        st.markdown("### Q&A History")
-        for qa in st.session_state.history:
-            st.markdown(f"<div style='margin-bottom: 1rem; background-color: #313236; padding: 0.5rem; border-radius: 0.5rem;'><pre>{qa}</pre></div>", unsafe_allow_html=True)
+# ========== Show History ==========
+if st.session_state.history:
+    st.markdown("---")
+    st.markdown("### Q&A History")
 
-        col1, col2 = st.columns([1, 1])
-        with col1:
-            st.download_button(
-                label="📥 Download Q&A History",
-                data="\n\n".join(st.session_state.history),
-                file_name="qa_history.txt",
-                mime="text/plain"
-            )
-        with col2:
-            if st.button("🗑️ Clear All"):
-                st.session_state.history = []
-                st.session_state.user_question = ""
-                st.session_state.pdf_uploaded = False
-                st.session_state.pdf_upload = None  
-                st.experimental_rerun()
+    for qa in st.session_state.history:
+        st.markdown(f"<div style='background-color:#222;padding:0.75rem;border-radius:8px;color:white;margin-bottom:10px'><pre>{qa}</pre></div>", unsafe_allow_html=True)
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.download_button("Download History", data="\n\n".join(st.session_state.history), file_name="qa_history.txt")
+    with col2:
+        if st.button("Clear All"):
+            st.session_state.history = []
+            st.session_state.pdf_loaded = False
+            st.session_state.file_uploader_key = f"upload_{os.urandom(4).hex()}"
+            st.experimental_rerun()
 else:
-    st.info("Please upload a PDF to begin.")
+    st.info("Upload a PDF to start asking questions.")
