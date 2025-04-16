@@ -10,7 +10,7 @@ from langchain.document_loaders import PyPDFLoader
 import subprocess
 
 def ensure_model_file():
-    model_path = "models/Hermes-2-Pro-Mistral-7B.Q5_K_M.gguf"
+    model_path = "Hermes-2-Pro-Mistral-7B.Q5_K_M.gguf"
 
     if not os.path.exists(model_path):
         os.makedirs("models", exist_ok=True)
