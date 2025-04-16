@@ -1,7 +1,7 @@
 import requests
 
 def download_ggfu_file():
-    file_id = "1A2B3C4D5E6F7G8H"  # replace with your real ID
+    file_id = "1v5_eMAlNWBW34ahL2zkH9n8kH0K-UUI1"  # replace with your real ID
     url = f"https://drive.google.com/file/d/1v5_eMAlNWBW34ahL2zkH9n8kH0K-UUI1/view?usp=sharing"
     
     print("Downloading .ggfu file...")
