@@ -18,7 +18,7 @@ def ensure_model_file():
 
         # ✅ Use gdown for Google Drive downloads (make sure to install it)
         file_id = "1v5_eMAlNWBW34ahL2zkH9n8kH0K-UUI1"
-        gdown_url = f"https://drive.google.com/uc?id={file_id}"
+        gdown_url = f"https://drive.google.com/file/d/1v5_eMAlNWBW34ahL2zkH9n8kH0K-UUI1/view?usp=sharing"
 
         try:
             subprocess.run(["gdown", gdown_url, "-O", model_path], check=True)
