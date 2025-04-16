@@ -10,15 +10,17 @@ from langchain.document_loaders import PyPDFLoader
 import subprocess
 
 def ensure_model_file():
-    model_path = "Hermes-2-Pro-Mistral-7B.Q5_K_M.gguf"
+    model_dir = "models"
+    model_filename = "Hermes-2-Pro-Mistral-7B.Q5_K_M.gguf"
+    model_path = os.path.join(model_dir, model_filename)
 
     if not os.path.exists(model_path):
-        os.makedirs("models", exist_ok=True)
+        os.makedirs(model_dir, exist_ok=True)
         st.info("Model not found locally. Downloading from Google Drive...")
 
-        # ✅ Use gdown for Google Drive downloads (make sure to install it)
+        # Use gdown for Google Drive downloads
         file_id = "1v5_eMAlNWBW34ahL2zkH9n8kH0K-UUI1"
-        gdown_url = f"https://drive.google.com/file/d/1v5_eMAlNWBW34ahL2zkH9n8kH0K-UUI1/view?usp=sharing"
+        gdown_url = f"https://drive.google.com/uc?id={file_id}"  # ✅ Correct format
 
         try:
             subprocess.run(["gdown", gdown_url, "-O", model_path], check=True)
