@@ -19,8 +19,8 @@ def ensure_model_file():
         st.info("Model not found locally. Downloading from Google Drive...")
 
         # Use gdown for Google Drive downloads
-        file_id = "1v5_eMAlNWBW34ahL2zkH9n8kH0K-UUI1"
-        gdown_url = f"https://drive.google.com/file/d/1v5_eMAlNWBW34ahL2zkH9n8kH0K-UUI1/view?usp=sharing"  # ✅ Correct format
+        file_id = "1K8qumxMXVZJ0P67nbDxJzqh-xTpxiCil"
+        gdown_url = f"https://drive.google.com/drive/folders/1K8qumxMXVZJ0P67nbDxJzqh-xTpxiCil?usp=drive_link"  # ✅ Correct format
 
         try:
             subprocess.run(["gdown", gdown_url, "-O", model_path], check=True)
