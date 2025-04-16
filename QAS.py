@@ -1,11 +1,35 @@
 import streamlit as st
 import os
 import tempfile
+import requests
 from llama_cpp import Llama
 from sentence_transformers import SentenceTransformer
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.vectorstores import FAISS
 from langchain.document_loaders import PyPDFLoader
+
+# 🚀 Auto-download model from Google Drive if not present
+def ensure_model_file():
+    model_path = "models/Hermes-2-Pro-Mistral-7B.Q5_K_M.gguf"
+
+    if not os.path.exists(model_path):
+        os.makedirs("models", exist_ok=True)
+        st.info("Model not found locally. Downloading from Google Drive...")
+
+        # 🔁 Replace with your actual file ID from Google Drive
+        file_id = "1v5_eMAlNWBW34ahL2zkH9n8kH0K-UUI1"
+        download_url = f"https://drive.google.com/file/d/1v5_eMAlNWBW34ahL2zkH9n8kH0K-UUI1/view?usp=sharing"
+        response = requests.get(download_url)
+
+        if response.status_code == 200:
+            with open(model_path, "wb") as f:
+                f.write(response.content)
+            st.success("Model downloaded successfully.")
+        else:
+            st.error("❌ Failed to download model from Google Drive.")
+            raise RuntimeError("Model download failed.")
+
+    return model_path
 
 class PDF_QA_Model:
     def __init__(self, model_path: str):
@@ -59,7 +83,6 @@ class PDF_QA_Model:
         return result if result else default_answer
 
 
-
 st.set_page_config(page_title="Generative AI-based Q&A System", layout="centered")
 
 st.markdown("<h1 style='text-align: center;'>PDF Q&A System</h1>", unsafe_allow_html=True)
@@ -72,9 +95,12 @@ if "history" not in st.session_state:
 if "pdf_loaded" not in st.session_state:
     st.session_state.pdf_loaded = False
 
+# 🔄 Ensure model file exists before loading model
+MODEL_FILE_PATH = ensure_model_file()
+
 @st.cache_resource
 def load_model():
-    return PDF_QA_Model("models\Hermes-2-Pro-Mistral-7B.Q5_K_M.gguf") 
+    return PDF_QA_Model(MODEL_FILE_PATH)
 
 gpt = load_model()
 
@@ -91,7 +117,7 @@ if uploaded_file:
         st.session_state.pdf_loaded = True
         st.success("PDF processed successfully!")
 
-
+# Ask Question
 if st.session_state.pdf_loaded:
     st.markdown("---")
     st.markdown("### Ask a Question")
