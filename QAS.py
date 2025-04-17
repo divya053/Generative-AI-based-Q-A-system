@@ -9,30 +9,35 @@ from langchain.vectorstores import FAISS
 from langchain.document_loaders import PyPDFLoader
 import subprocess
 
+
 def ensure_model_file():
-    model_dir = "models/Hermes-2-Pro-Mistral-7B"
-    gguf_file = "Hermes-2-Pro-Mistral-7B.Q5_K_M.gguf"
-    model_path = os.path.join(model_dir, gguf_file)
+    model_dir = "models"
+    model_folder_id = "1K8qumxMXVZJ0P67nbDxJzqh-xTpxiCil"
+    model_download_path = os.path.abspath(model_dir)
 
-    if not os.path.exists(model_path):
-        os.makedirs(model_dir, exist_ok=True)
-        st.info("Model files not found locally. Downloading from Google Drive folder...")
+    if not os.path.exists(model_download_path) or not os.listdir(model_download_path):
+        os.makedirs(model_download_path, exist_ok=True)
+        st.info("Model not found locally. Downloading from Google Drive folder...")
 
-        # Google Drive folder ID (not file ID)
-        folder_id = "1K8qumxMXVZJ0P67nbDxJzqh-xTpxiCil"
         try:
             subprocess.run([
                 "gdown",
                 f"https://drive.google.com/drive/folders/1K8qumxMXVZJ0P67nbDxJzqh-xTpxiCil",
+                "--fuzzy",
                 "--folder",
-                "-O", model_dir
+                "--output", model_download_path
             ], check=True)
             st.success("✅ Model folder downloaded successfully.")
-        except Exception as e:
+        except subprocess.CalledProcessError as e:
             st.error("❌ Failed to download model folder from Google Drive.")
             raise RuntimeError(f"Model download failed: {e}")
 
-    return model_path
+    # Find the .gguf file inside the downloaded model folder
+    for file in os.listdir(model_download_path):
+        if file.endswith(".gguf"):
+            return os.path.join(model_download_path, file)
+
+    raise FileNotFoundError("❌ .gguf model file not found in the downloaded folder.")
 
 
 
